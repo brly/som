@@ -1,81 +1,124 @@
-#include "som.hpp"
 #include <opencv2/opencv.hpp>
-
-using namespace std;
-using namespace cv;
-
-typedef std::vector<double> elem;
-typedef std::vector<elem> vec;
-typedef std::vector<vec> mat; 
+#include "som.hpp"
 
 namespace {
 
-// Output layer size.
-const int kRow = 100;
-const int kCol = 100;
-const int kDim = 3;
+enum {
+  kImageRow = 100,
+  kImageCol = 100,
+  kChannel = 3,
+  kPixel = 5
+};
 
-// Pixel per color.
-const int kPixel = 5;
+// http://ja.wikibooks.org/wiki/More_C%2B%2B_Idioms
+template <class T>
+class NonCopyable {
+  protected:
+    NonCopyable () {}
+    ~NonCopyable () {}
+  private: 
+    NonCopyable (const NonCopyable &);
+    T & operator = (const T &);
+};
 
-Mat screen(Size(kRow * kPixel, kCol * kPixel), CV_8UC3);
+class MatHolder : private NonCopyable<MatHolder> {
+  cv::Mat mat;
+ public: 
+  explicit MatHolder()
+      : mat(cv::Size(kImageRow * kPixel, kImageCol * kPixel),
+            CV_8UC3) {}
 
-// SOM object
-som::Som<double, kDim, kRow, kCol> *som_obj;
+  void set(const size_t i, const size_t j, const size_t k, const size_t value) {
+    mat.at<cv::Vec3b>(i, j)[k] = value;
+  }
 
-}; // anonymous namespace
+  size_t at(const size_t i, const size_t j, const size_t k) const {
+    return mat.at<cv::Vec3b>(i, j)[k];
+  }
 
-// ------------------------------------------------------------
-// Prototype definition
+  cv::Mat get() const { return mat; }
+};
 
-// Copy data from som_obj to screen.
-void copy_to_opencv_mat();
+namespace object {
 
-// Run window, it calls waitKey().
-void run_window();
+MatHolder matHolder;
+brly::Som<double> som(kChannel, kImageRow, kImageCol);
 
-// Event-handler, relate with window.
-void on_mouse(int event, int x, int y, int flag, void*);
+void next();
+void copy();
+void copyElemSelected(const size_t, const size_t);
+void copyPixelSelected(const size_t, const size_t, const size_t, const size_t);
 
-// ------------------------------------------------------------
-// Implementation
-void copy_to_opencv_mat() {
-  const mat& m = som_obj->data();
-  for (unsigned i = 0; i < kRow; ++i) {
-    for (unsigned j = 0; j < kCol; ++j) {
-      for (unsigned ii = 0; ii < kPixel; ++ii) {
-        for (unsigned jj = 0; jj < kPixel; ++jj) {
-          const unsigned kI = i * kPixel + ii;
-          const unsigned kJ = j * kPixel + jj;
-          for (unsigned k = 0; k < kDim; ++k) {
-            screen.at<Vec3b>(kI, kJ)[k] = m[i][j][k] * 255;
-          }
-        }
-      }
+void next() {
+  som.apply();
+}
+
+void copy() {
+  for (size_t i = 0; i < kImageRow; ++i) {
+    for (size_t j = 0; j < kImageCol; ++j) {
+      copyElemSelected(i, j);
     }
   }
 }
 
-void run_window() {
-  copy_to_opencv_mat();
-  namedWindow("opencv_window", CV_WINDOW_AUTOSIZE | CV_WINDOW_FREERATIO);
-  setMouseCallback("opencv_window", on_mouse, 0);
-  imshow("opencv_window", screen);
-  waitKey(0);
+void copyElemSelected(const size_t si, const size_t sj) {
+  for (size_t i = 0; i < kPixel; ++i) {
+    for (size_t j = 0; j < kPixel; ++j) {
+      copyPixelSelected(si, sj, i, j);
+    }
+  }
 }
 
-void on_mouse(int event, int x, int y, int flag, void*) {
-  som_obj->next();
-  copy_to_opencv_mat();
-  imshow("opencv_window", screen);
+
+void copyPixelSelected(const size_t si, const size_t sj,
+                       const size_t pi, const size_t pj) {
+  for (size_t k = 0; k < kChannel; ++k) {
+    matHolder.set(si * kPixel + pi,
+                  sj * kPixel + pj,
+                  k,
+                  som.at(si, sj, k) * 255);
+  }
 }
 
-// ------------------------------------------------------------
-// entry point
+}; // namespace object
+
+class Viewer : private NonCopyable<Viewer> {
+
+  // static
+  static std::string WindowName() { return std::string("Som_Sample"); }
+  static void OnMouseCallback(int ev, int x, int y, int f, void*) {
+    object::next();
+    object::copy();
+    cv::imshow(Viewer::WindowName(), object::matHolder.get());
+    cv::waitKey(0);
+  }
+  
+ public:
+  
+  explicit Viewer() {
+    init();
+  }
+
+  void init() {
+    object::copy();
+    cv::namedWindow(Viewer::WindowName(),
+                    CV_WINDOW_AUTOSIZE | CV_WINDOW_FREERATIO);
+    cv::imshow(Viewer::WindowName(), object::matHolder.get());
+    cv::setMouseCallback(Viewer::WindowName(), Viewer::OnMouseCallback);
+    cv::waitKey(0);
+  }
+};
+
+class Application : private NonCopyable<Application> {
+ public:
+  explicit Application() {
+    Viewer view;
+  }
+};
+
+}; // anonymous namespace
+
 int main() {
-  // initialize
-  som_obj = new som::Som<double, kDim, kRow, kCol>();
-  // run window
-  run_window();
+  ::Application();
   return 0;
 }

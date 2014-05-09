@@ -2,6 +2,7 @@
 #define SOM_MAP_HPP
 
 #include <vector>
+#include <cmath>
 #include "element.hpp"
 #include "util.hpp"
 
@@ -11,6 +12,19 @@ template <class T>
 class SomMap {
   typedef std::vector<Element<T> > SomSubMap;
   std::vector<SomSubMap> mMap;
+
+  // 経過時間を管理する
+  struct Time {
+    unsigned mValue;
+    explicit Time () : mValue(0) {}
+    int get() const {
+      return mValue;
+    }
+    int increment() {
+      ++mValue;
+    }
+    
+  } mTime;
 
   struct Location {
     int mX;
@@ -63,7 +77,7 @@ class SomMap {
     return nearest;
   }
 
-  // 引数にインデックスがある場合は mMap 中の行のインデックスを示し、
+  // 引数にインデックスがある場合は mMap 中の行のインデックスを示し
   // 行の中で最も引数の要素に近い場所の列インデックスと距離を返す
   PairTInt findBestMatchUnit(Element<T> aElement, int aIndex) {
     const SomSubMap subMap = mMap[aIndex];
@@ -82,20 +96,43 @@ class SomMap {
     }
     return PairTInt(minDiff, col);
   }
+
+  void updateMapImpl(const Location aBestMatchUnit) {
+    const int Row = mMap.size(), Col = mMap[0].size();
+    const int N = Row * Col;
+
+    for (int i = 0; i < Row; i++) {
+      
+    }
+  }
+
+  void updateMapImpl(const Location aBestMatchUnit,
+                     const int aIndex, const int aCol, const int N) {
+    for (int i = 0; i < aCol; i++) {
+      // BestMatchUnitと距離を距離を計算する
+      const double distance =
+          calcDistance(aBestMatchUnit.getX(), aBestMatchUnit.getY(),
+                       i, aIndex);
+      // 対象要素の寄与率を計算する
+      // const double alpha = 1.0 - 0.0001 * mTime.get();
+    }
+  }
+
+  // 引数座標ペアの距離を計算する
+  double calcDistance(const int aX0, const int aY0,
+                      const int aX1, const int aY1) {
+    return sqrt(pow(aX0 - aX1, 2.0) + pow(aY0 - aY1, 2.0));
+  }
+
+  // 引数距離に応じた寄与率を計算する
+  double calcAlpha(const double aDistance) {
+    
+  }
   
 }; // class SomMap
 
 }; // namespace brly
 
 #endif 
-
-
-
-
-
-
-
-
-
 
 
